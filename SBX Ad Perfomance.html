@@ -107,7 +107,7 @@
         document.getElementById('avgCpr').textContent = `₹${avgCpr.toFixed(2)}`;
 
         // --- CHART CONFIGURATION AND RENDERING ---
-        const ctx = document.getElementById('performanceChart').getContext('d');
+        const ctx = document.getElementById('performanceChart').getContext('2d');
         const performanceChart = new Chart(ctx, {
             type: 'bar', // The base chart type is a bar chart.
             data: {
