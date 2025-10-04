@@ -28,6 +28,23 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
         }
+        .month-btn {
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px; /* pill shape */
+            font-weight: 500;
+            border: 1px solid transparent;
+            color: #4b5563; /* gray-600 */
+            background-color: #e5e7eb; /* gray-200 */
+            transition: all 0.2s ease-in-out;
+        }
+        .month-btn:hover {
+            background-color: #d1d5db; /* gray-300 */
+        }
+        .month-btn.active-btn {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8">
@@ -46,7 +63,7 @@
                     <h2 class="text-lg font-semibold text-gray-500">Total Amount Spent</h2>
                     <p id="totalSpent" class="text-4xl font-bold text-gray-800 mt-2">₹0</p>
                 </div>
-                <p class="text-sm text-gray-400 mt-4">Across all 6 weeks</p>
+                <p id="spentSubtext" class="text-sm text-gray-400 mt-4">Across all periods</p>
             </div>
             <div class="card p-6 flex flex-col justify-between">
                 <div>
@@ -67,9 +84,18 @@
                     <h2 class="text-lg font-semibold text-gray-500">Average Cost Per Result</h2>
                     <p id="avgCpr" class="text-4xl font-bold text-gray-800 mt-2">₹0</p>
                 </div>
-                 <p class="text-sm text-gray-400 mt-4">Average across all 6 weeks</p>
+                 <p id="cprSubtext" class="text-sm text-gray-400 mt-4">Average across all periods</p>
             </div>
         </div>
+        
+        <!-- Month Filter Buttons -->
+        <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-6" id="monthFilter">
+            <button class="month-btn active-btn" data-month="all">All</button>
+            <button class="month-btn" data-month="July">July</button>
+            <button class="month-btn" data-month="Aug">August</button>
+            <button class="month-btn" data-month="Sep">September</button>
+        </div>
+
 
         <!-- Chart Section -->
         <div class="card p-6">
@@ -89,154 +115,179 @@
             { week: 'Aug 3 - 10', spent: 2600, leads: 33, cpr: 53, conversations: 16, qualifiedLeads: 7 },
             { week: 'Aug 10 - 17', spent: 1825, leads: 14, cpr: 130, qualifiedLeads: 3 },
             { week: 'Aug 17 - 24', spent: 1813, leads: 12, cpr: 151, qualifiedLeads: null },
-            { week: 'Aug 24 - 31', spent: 2259, leads: 32, cpr: 70, qualifiedLeads: null }
+            { week: 'Aug 24 - 31', spent: 2259, leads: 32, cpr: 70, qualifiedLeads: null },
+            { week: 'Sep 1 - 7', spent: 354, leads: 2, cpr: 177, qualifiedLeads: null },
+            { week: 'Sep 8 - 14', spent: 1680, leads: 7, cpr: 240, qualifiedLeads: null },
+            { week: 'Sep 15 - 21', spent: 1845, leads: 25, cpr: 73.8, qualifiedLeads: null },
+            { week: 'Sep 22 - 28', spent: 1859, leads: 12, cpr: 154.9, qualifiedLeads: null },
+            { week: 'Sep 29 - 30', spent: 363, leads: 5, cpr: 72.6, qualifiedLeads: null }
         ];
 
-        // --- CALCULATE KEY METRICS ---
-        // Calculate the totals and averages to display in the summary cards.
-        const totalSpent = reportData.reduce((sum, item) => sum + item.spent, 0);
-        const totalLeads = reportData.reduce((sum, item) => sum + item.leads, 0);
-        const totalQualifiedLeads = reportData.reduce((sum, item) => sum + (item.qualifiedLeads || 0), 0);
-        const avgCpr = reportData.reduce((sum, item) => sum + item.cpr, 0) / reportData.length;
+        const monthFilter = document.getElementById('monthFilter');
+        let performanceChart; // Will be initialized later
 
-        // --- UPDATE METRIC CARDS IN THE UI ---
-        // Set the text content of the summary cards with the calculated values.
-        document.getElementById('totalSpent').textContent = `₹${totalSpent.toLocaleString('en-IN')}`;
-        document.getElementById('totalLeads').textContent = totalLeads.toLocaleString('en-IN');
-        document.getElementById('totalQualifiedLeads').textContent = totalQualifiedLeads.toLocaleString('en-IN');
-        document.getElementById('avgCpr').textContent = `₹${avgCpr.toFixed(2)}`;
+        function updateReport(data, monthName) {
+             // --- CALCULATE KEY METRICS ---
+            const totalSpent = data.reduce((sum, item) => sum + item.spent, 0);
+            const totalLeads = data.reduce((sum, item) => sum + item.leads, 0);
+            const totalQualifiedLeads = data.reduce((sum, item) => sum + (item.qualifiedLeads || 0), 0);
+            const avgCpr = data.length > 0 ? data.reduce((sum, item) => sum + item.cpr, 0) / data.length : 0;
 
-        // --- CHART CONFIGURATION AND RENDERING ---
-        const ctx = document.getElementById('performanceChart').getContext('2d');
-        const performanceChart = new Chart(ctx, {
-            type: 'bar', // The base chart type is a bar chart.
-            data: {
-                labels: reportData.map(d => d.week), // Labels for the X-axis (weekly periods)
-                datasets: [
-                    {
-                        label: 'Amount Spent (₹)',
-                        data: reportData.map(d => d.spent),
-                        backgroundColor: 'rgba(59, 130, 246, 0.5)', // Blue bars
-                        borderColor: 'rgba(59, 130, 246, 1)',
-                        borderWidth: 1,
-                        yAxisID: 'y', // Assign to the primary Y-axis
-                        order: 2 
-                    },
-                    {
-                        label: 'Total Leads',
-                        data: reportData.map(d => d.leads),
-                        backgroundColor: 'rgba(16, 185, 129, 0.6)', // Green bars
-                        borderColor: 'rgba(16, 185, 129, 1)',
-                        borderWidth: 1,
-                        yAxisID: 'y', // Assign to the primary Y-axis
-                        order: 3
-                    },
-                     {
-                        label: 'Qualified Leads',
-                        data: reportData.map(d => d.qualifiedLeads),
-                        backgroundColor: 'rgba(249, 115, 22, 0.6)', // Orange bars
-                        borderColor: 'rgba(249, 115, 22, 1)',
-                        borderWidth: 1,
-                        yAxisID: 'y',
-                        order: 4
-                    },
-                    {
-                        label: 'Cost Per Result (₹)',
-                        data: reportData.map(d => d.cpr),
-                        type: 'line', // This dataset will be rendered as a line chart
-                        borderColor: 'rgba(239, 68, 68, 1)', // Red line
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        tension: 0.3, // Makes the line slightly curved
-                        fill: false,
-                        yAxisID: 'y1', // Assign to the secondary Y-axis
-                        order: 1 // Render on top
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index', // Show tooltips for all datasets at the same x-index
-                    intersect: false,
+            // --- UPDATE METRIC CARDS IN THE UI ---
+            document.getElementById('totalSpent').textContent = `₹${totalSpent.toLocaleString('en-IN')}`;
+            document.getElementById('totalLeads').textContent = totalLeads.toLocaleString('en-IN');
+            
+            if (monthName === 'September') {
+                document.getElementById('totalQualifiedLeads').textContent = 'N/A';
+            } else {
+                document.getElementById('totalQualifiedLeads').textContent = totalQualifiedLeads.toLocaleString('en-IN');
+            }
+            
+            document.getElementById('avgCpr').textContent = `₹${avgCpr.toFixed(2)}`;
+            
+            const subtext = monthName === 'All' ? 'Across all periods' : `For ${monthName}`;
+            document.getElementById('spentSubtext').textContent = subtext;
+            document.getElementById('cprSubtext').textContent = `Average for ${monthName}`;
+
+
+            // --- UPDATE CHART ---
+            performanceChart.data.labels = data.map(d => d.week);
+            performanceChart.data.datasets[0].data = data.map(d => d.spent);
+            performanceChart.data.datasets[1].data = data.map(d => d.leads);
+            performanceChart.data.datasets[2].data = data.map(d => d.qualifiedLeads);
+            performanceChart.data.datasets[3].data = data.map(d => d.cpr);
+            performanceChart.update();
+        }
+
+        monthFilter.addEventListener('click', (e) => {
+            if (e.target.classList.contains('month-btn')) {
+                // Update active button style
+                monthFilter.querySelector('.active-btn').classList.remove('active-btn');
+                e.target.classList.add('active-btn');
+                
+                const month = e.target.dataset.month;
+                if (month === 'all') {
+                    updateReport(reportData, 'All');
+                } else {
+                    const filteredData = reportData.filter(d => d.week.startsWith(month));
+                    updateReport(filteredData, e.target.textContent);
+                }
+            }
+        });
+
+        // --- CHART INITIALIZATION ---
+        function initializeChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [], // Initial empty labels
+                    datasets: [
+                        {
+                            label: 'Amount Spent (₹)',
+                            data: [],
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 2 
+                        },
+                        {
+                            label: 'Total Leads',
+                            data: [],
+                            backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 3
+                        },
+                         {
+                            label: 'Qualified Leads',
+                            data: [],
+                            backgroundColor: 'rgba(249, 115, 22, 0.6)',
+                            borderColor: 'rgba(249, 115, 22, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 4
+                        },
+                        {
+                            label: 'Cost Per Result (₹)',
+                            data: [],
+                            type: 'line',
+                            borderColor: 'rgba(239, 68, 68, 1)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            tension: 0.3,
+                            fill: false,
+                            yAxisID: 'y1',
+                            order: 1
+                        }
+                    ]
                 },
-                scales: {
-                    x: {
-                        grid: {
-                            display: false // Hide vertical grid lines for a cleaner look
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Amount Spent (₹) / Total Leads' },
+                            grid: { color: '#e5e7eb' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Cost Per Result (₹)' },
+                            grid: { drawOnChartArea: false },
                         }
                     },
-                    y: { // Primary Y-axis for Amount Spent and Leads
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Amount Spent (₹) / Total Leads'
-                        },
-                        grid: {
-                            color: '#e5e7eb' // Lighter grid lines
-                        }
-                    },
-                    y1: { // Secondary Y-axis for CPR
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Cost Per Result (₹)'
-                        },
-                        grid: {
-                            drawOnChartArea: false, // Only show grid lines for the primary axis
-                        },
-                    }
-                },
-                plugins: {
-                    tooltip: {
-                        backgroundColor: '#1f2937',
-                        titleFont: { size: 16 },
-                        bodyFont: { size: 14 },
-                        padding: 12,
-                        cornerRadius: 6,
-                        // Custom tooltip callback to handle special cases
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    // Add a Rupee symbol for currency values
-                                    if (context.dataset.label.includes('₹')) {
-                                        label += new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(context.parsed.y);
+                    plugins: {
+                        tooltip: {
+                            backgroundColor: '#1f2937',
+                            titleFont: { size: 16 },
+                            bodyFont: { size: 14 },
+                            padding: 12,
+                            cornerRadius: 6,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        if (context.dataset.label.includes('₹')) {
+                                            label += new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(context.parsed.y);
+                                        } else {
+                                            label += context.parsed.y;
+                                        }
                                     } else {
-                                        label += context.parsed.y;
+                                        return label + 'N/A';
                                     }
-                                } else {
-                                    return label + 'N/A';
+                                    const originalDataPoint = reportData.find(d => d.week === context.label);
+                                    if (context.dataset.label === 'Total Leads' && originalDataPoint && originalDataPoint.conversations) {
+                                       return [label, `  (+ ${originalDataPoint.conversations} conversations)`];
+                                    }
+                                    return label;
                                 }
-                                // Add conversation info for the specific week
-                                if (context.dataset.label === 'Total Leads' && context.dataIndex === 2) {
-                                   const conversations = reportData[context.dataIndex].conversations;
-                                   return [label, `  (+ ${conversations} conversations)`];
-                                }
-                                return label;
                             }
-                        }
-                    },
-                    legend: {
-                        position: 'bottom', // Place the legend at the bottom
-                        labels: {
-                            padding: 20,
-                            font: {
-                                size: 14
-                            }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: { padding: 20, font: { size: 14 } }
                         }
                     }
                 }
-            }
+            });
+        }
+        
+        // --- INITIAL RENDER ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeChart();
+            updateReport(reportData, 'All'); // Initial view with all data
         });
     </script>
 </body>
 </html>
+
 
